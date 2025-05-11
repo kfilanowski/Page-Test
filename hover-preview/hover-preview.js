@@ -45,6 +45,9 @@ function initializeHoverPreview() {
   // Create a map to store nested preview elements
   const previewsMap = new Map();
   
+  // Map to track which preview is currently being hovered
+  const previewHoverState = new Map();
+  
   // Check if we're just arriving from a clicked link and should hide any previews
   document.addEventListener('DOMContentLoaded', function() {
     if (sessionStorage.getItem('linkClicked') === 'true') {
@@ -241,12 +244,12 @@ function initializeHoverPreview() {
           
           // Set up hover events for the nested preview
           nestedPreviewEl.addEventListener('mouseenter', function() {
-            isHoveringPreview = true;
+            previewHoverState.set(nestedPreviewEl, true);
             cancelHidePreviewTimeout();
           });
           
           nestedPreviewEl.addEventListener('mouseleave', function() {
-            isHoveringPreview = false;
+            previewHoverState.set(nestedPreviewEl, false);
             hidePreviewAfterDelay(nestedPreviewEl);
           });
         }
@@ -390,14 +393,14 @@ function initializeHoverPreview() {
   // Handle hover events on the preview itself
   previewEl.addEventListener('mouseenter', function() {
     isHoveringPreview = true;
+    previewHoverState.set(previewEl, true);
     cancelHidePreviewTimeout();
   });
   
   previewEl.addEventListener('mouseleave', function() {
     isHoveringPreview = false;
-    if (nestedPreviews.length === 0) { // Only hide if there are no nested previews
-      hidePreviewAfterDelay(previewEl);
-    }
+    previewHoverState.set(previewEl, false);
+    hidePreviewAfterDelay(previewEl);
   });
   
   // Timeout to hide the preview
@@ -406,19 +409,33 @@ function initializeHoverPreview() {
   function hidePreviewAfterDelay(previewElement) {
     cancelHidePreviewTimeout();
     hideTimeout = setTimeout(() => {
-      if (previewElement === previewEl) {
-        // Hide main preview and all nested previews
-        hideAllPreviews();
-      } else {
-        // Just hide this specific nested preview
-        hidePreview(previewElement);
-        // Remove from nested previews array
-        const index = nestedPreviews.indexOf(previewElement);
-        if (index !== -1) {
-          nestedPreviews.splice(index, 1);
+      // Only hide if still not being hovered
+      if (!previewHoverState.get(previewElement)) {
+        if (previewElement === previewEl) {
+          // Hide main preview and all nested previews
+          hideAllPreviews();
+        } else {
+          // Just hide this specific nested preview and any previews that depend on it
+          hidePreviewAndChildren(previewElement);
         }
       }
     }, 300); // Hide after 300ms
+  }
+  
+  function hidePreviewAndChildren(previewElement) {
+    // Find the index of this preview in the nested previews array
+    const index = nestedPreviews.indexOf(previewElement);
+    
+    if (index !== -1) {
+      // Hide this preview and all previews that come after it in the hierarchy
+      for (let i = nestedPreviews.length - 1; i >= index; i--) {
+        hidePreview(nestedPreviews[i]);
+        nestedPreviews.pop();
+      }
+    } else {
+      // Just hide this preview if it's not in the array
+      hidePreview(previewElement);
+    }
   }
   
   function hideAllPreviews() {

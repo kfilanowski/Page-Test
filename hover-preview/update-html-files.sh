@@ -3,17 +3,17 @@
 # This script updates the hover preview functionality in all HTML files
 
 # Make sure the necessary directories exist
-mkdir -p lib/styles
-mkdir -p lib/scripts
+mkdir -p ../lib/styles
+mkdir -p ../lib/scripts
 
 # Copy hover preview files from the hover-preview directory to the lib directory
 echo "Copying hover preview files to lib directory..."
-cp hover-preview/hover-preview.js ../lib/scripts/hover-preview.js
-cp hover-preview/hover-preview.css ../lib/styles/hover-preview.css
+cp hover-preview.js ../lib/scripts/hover-preview.js
+cp hover-preview.css ../lib/styles/hover-preview.css
 echo "Hover preview files have been copied to lib directory."
 
-# Find all HTML files in the current directory and subdirectories
-find . -type f -name "*.html" | while read -r file; do
+# Find all HTML files in the parent directory and its subdirectories
+find .. -type f -name "*.html" | while read -r file; do
   echo "Processing $file..."
   
   # Remove existing hover preview script and CSS if present
