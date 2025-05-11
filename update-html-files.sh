@@ -1,25 +1,21 @@
 #!/bin/bash
 
-# This script adds the hover preview functionality to all HTML files
+# This script updates the hover preview functionality in all HTML files
 
 # Find all HTML files in the current directory and subdirectories
 find . -type f -name "*.html" | while read -r file; do
   echo "Processing $file..."
   
-  # Check if the hover preview script is already included
-  if grep -q "hover-preview.js" "$file"; then
-    echo "  Already has hover preview script, skipping."
-    continue
-  fi
-  
-  # Backup the file
-  #cp "$file" "${file}.bak"
+  # Remove existing hover preview script and CSS if present
+  sed -i '' 's|<link rel="stylesheet" href="lib/styles/hover-preview.css">||g' "$file"
+  sed -i '' 's|<script async src="lib/scripts/hover-preview.js">.*</script>||g' "$file"
+  sed -i '' 's|<script src="lib/scripts/hover-preview.js">.*</script>||g' "$file"
   
   # Add the hover preview CSS link before the closing </head> tag
   sed -i '' 's#</head>#<link rel="stylesheet" href="lib/styles/hover-preview.css">\n</head>#' "$file"
   
-  # Add the hover preview JS script before the closing </head> tag
-  sed -i '' 's#</head>#<script async src="lib/scripts/hover-preview.js"></script>\n</head>#' "$file"
+  # Add the hover preview JS script right before the closing </body> tag to ensure it loads last
+  sed -i '' 's#</body>#<script src="lib/scripts/hover-preview.js"></script>\n</body>#' "$file"
   
   echo "  Updated $file"
 done

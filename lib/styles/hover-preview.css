@@ -26,6 +26,36 @@
   transform: translateY(0);
 }
 
+/* Arrow pointing down (when preview is above link) */
+.hover-preview.points-up::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid var(--background-primary);
+  z-index: 1;
+}
+
+/* Arrow pointing up (when preview is below link) */
+.hover-preview.points-down::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid var(--background-primary);
+  z-index: 1;
+}
+
 /* Loading animation */
 .hover-preview-loading {
   display: inline-block;
@@ -108,6 +138,31 @@
   max-width: 100%;
 }
 
+/* Handle headings */
+.hover-preview-content h1,
+.hover-preview-content h2,
+.hover-preview-content h3,
+.hover-preview-content h4,
+.hover-preview-content h5,
+.hover-preview-content h6 {
+  margin-top: 0.5em;
+  margin-bottom: 0.3em;
+}
+
+/* Handle code blocks */
+.hover-preview-content pre,
+.hover-preview-content code {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Handle tables */
+.hover-preview-content table {
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+
 .hover-preview .preview-error {
   color: var(--text-error);
   text-align: center;
@@ -135,17 +190,13 @@
   position: relative;
 }
 
-/* Fixed position indicator */
-.hover-preview::after {
-  content: "";
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 8px solid var(--background-primary);
-  z-index: 9999;
+/* Fix theme-specific compatibility issues */
+body.theme-dark .hover-preview {
+  background-color: var(--background-primary, #2d3032);
+  color: var(--text-normal, #dcddde);
+}
+
+body.theme-light .hover-preview {
+  background-color: var(--background-primary, #ffffff);
+  color: var(--text-normal, #2e3338);
 } 
