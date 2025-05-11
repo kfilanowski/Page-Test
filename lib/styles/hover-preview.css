@@ -17,6 +17,7 @@
   opacity: 0;
   transform: translateY(5px);
   transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: auto !important;
 }
 
 .hover-preview.visible {
@@ -115,9 +116,24 @@
   text-decoration: none;
   border-bottom: 1px dotted var(--text-accent);
   cursor: pointer;
+  position: relative;
+  z-index: 1;
 }
 
 .internal-link.bracket-link:hover {
   color: var(--text-accent-hover);
   border-bottom-color: var(--text-accent-hover);
+}
+
+/* Highly visible test styles for debugging */
+.hover-preview.visible::before {
+  content: "Preview is visible";
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: red;
+  color: white;
+  padding: 5px;
+  font-size: 10px;
+  z-index: 9999;
 } 
