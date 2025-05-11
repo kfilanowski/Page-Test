@@ -54,6 +54,7 @@ function initializeHoverPreview() {
   
   // Track mouse movement between previews
   let mouseTarget = null;
+  let isMouseOverAnyPreview = false;
   
   // Check if we're just arriving from a clicked link and should hide any previews
   document.addEventListener('DOMContentLoaded', function() {
@@ -87,11 +88,13 @@ function initializeHoverPreview() {
     // Find what preview (if any) the mouse is currently over
     let insidePreview = null;
     let highestLevel = -1;
+    let foundPreview = false;
     
     // First check if we're inside the main preview
     if (previewEl.style.display !== 'none' && isElementOrChildOf(mouseTarget, previewEl)) {
       insidePreview = previewEl;
       highestLevel = 0;
+      foundPreview = true;
     }
     
     // Then check all nested previews
@@ -101,16 +104,35 @@ function initializeHoverPreview() {
         if (level > highestLevel) {
           insidePreview = preview;
           highestLevel = level;
+          foundPreview = true;
         }
       }
     }
     
-    // If we're inside a preview, mark it and its ancestors as being hovered
-    // and close any previews that aren't in this direct path
-    if (insidePreview) {
+    // Update our tracking of whether mouse is over any preview
+    isMouseOverAnyPreview = foundPreview;
+    
+    // If we're not inside any preview anymore, schedule all to close
+    if (!foundPreview) {
+      // If we have open previews and mouse is over the main document
+      if ((previewEl.style.display !== 'none' || nestedPreviews.some(p => p.style.display !== 'none')) 
+           && !isHovering(mouseTarget)) {
+        hideAllPreviewsAfterDelay();
+      }
+    } else if (insidePreview) {
+      // If we're inside a preview, mark it and its ancestors as being hovered
+      // and close any previews that aren't in this direct path
       updateActivePreviewPath(insidePreview);
     }
   });
+  
+  // Check if we're hovering over a link
+  function isHovering(element) {
+    return element && (
+      element.classList && element.classList.contains('internal-link') || 
+      element.closest && element.closest('.internal-link')
+    );
+  }
   
   // Check if an element is the same as or a child of another element
   function isElementOrChildOf(element, container) {
@@ -364,7 +386,7 @@ function initializeHoverPreview() {
           
           // Update active preview path
           updateActivePreviewPath(nestedPreviewEl);
-        }, 300);
+        }, 150); // Show preview after 150ms hover (reduced from 300ms)
       } else {
         // Regular link (not inside a preview)
         currentLink = link;
@@ -382,7 +404,7 @@ function initializeHoverPreview() {
           
           // Update active preview path
           updateActivePreviewPath(previewEl);
-        }, 300); // Show preview after 300ms hover
+        }, 150); // Show preview after 150ms hover (reduced from 300ms)
       }
     });
     
@@ -545,9 +567,27 @@ function initializeHoverPreview() {
           hidePreviewAndDescendants(previewElement);
         }
       }
-    }, 300); // Hide after 300ms
+    }, 150); // Hide after 150ms (reduced from 300ms)
     
     hideTimeouts.set(previewElement, timeout);
+  }
+  
+  // Function to hide all previews after a short delay
+  function hideAllPreviewsAfterDelay() {
+    // Cancel any existing timeouts
+    for (const preview of [previewEl, ...nestedPreviews]) {
+      cancelHidePreviewTimeout(preview);
+    }
+    
+    // Set a single timeout to hide everything
+    const timeout = setTimeout(() => {
+      // Double check that we're still not over any preview
+      if (!isMouseOverAnyPreview) {
+        hideAllPreviews();
+      }
+    }, 150); // Hide after 150ms
+    
+    hideTimeouts.set('all', timeout);
   }
   
   function cancelHidePreviewTimeout(previewElement) {
@@ -555,6 +595,13 @@ function initializeHoverPreview() {
     if (timeout) {
       clearTimeout(timeout);
       hideTimeouts.delete(previewElement);
+    }
+    
+    // Also clear the "hide all" timeout if it exists
+    const hideAllTimeout = hideTimeouts.get('all');
+    if (hideAllTimeout) {
+      clearTimeout(hideAllTimeout);
+      hideTimeouts.delete('all');
     }
   }
   
@@ -588,6 +635,7 @@ function initializeHoverPreview() {
     currentLink = null;
     activePreview = null;
     previewHoverState.clear();
+    isMouseOverAnyPreview = false;
   }
   
   function hideNestedPreviews() {
