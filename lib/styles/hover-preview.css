@@ -26,6 +26,15 @@
   transform: translateY(0);
 }
 
+/* Preview title */
+.preview-title {
+  margin-top: 0;
+  margin-bottom: 0.8em;
+  font-size: 1.2em;
+  padding-bottom: 0.5em;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
 /* Arrow pointing down (when preview is above link) */
 .hover-preview.points-up::after {
   content: "";
@@ -168,6 +177,17 @@
   text-align: center;
   padding: 15px;
   font-style: italic;
+}
+
+.hover-preview .preview-message {
+  color: var(--text-normal);
+  text-align: center;
+  padding: 15px;
+  font-style: italic;
+}
+
+.hover-preview .preview-content {
+  padding: 5px;
 }
 
 /* Bracket link styling */
