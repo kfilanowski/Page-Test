@@ -1,13 +1,3 @@
-#!/bin/bash
-
-# This script updates the hover preview functionality in all HTML files
-
-# Make sure the necessary directories exist
-mkdir -p lib/styles
-mkdir -p lib/scripts
-
-# Ensure hover preview files exist by recreating them
-cat > lib/scripts/hover-preview.js << 'EOF'
 /**
  * Obsidian-like Hover Preview functionality
  * This script adds the ability to hover over internal links and see a preview of the linked content
@@ -50,11 +40,15 @@ function initializeHoverPreview() {
   let isHoveringPreview = false;
   let hoverTimeout = null;
   let activePreview = null; // Track the currently active preview
+  let nestedPreviews = []; // Track nested previews
+  
+  // Create a map to store nested preview elements
+  const previewsMap = new Map();
   
   // Check if we're just arriving from a clicked link and should hide any previews
   document.addEventListener('DOMContentLoaded', function() {
     if (sessionStorage.getItem('linkClicked') === 'true') {
-      hidePreview();
+      hideAllPreviews();
       sessionStorage.removeItem('linkClicked');
     }
   });
@@ -214,112 +208,183 @@ function initializeHoverPreview() {
     if (link.hasAttribute('data-hover-processed')) return;
     link.setAttribute('data-hover-processed', 'true');
     
+    // Check if this link is inside a preview
+    const isNested = link.closest('.hover-preview-content') !== null;
+    
     link.addEventListener('mouseenter', function(e) {
       cancelHoverTimeout();
       
-      currentLink = link;
-      
-      // Set a timeout to show the preview (to avoid flickering on quick mouse movements)
-      hoverTimeout = setTimeout(() => {
-        const linkRect = link.getBoundingClientRect();
+      // If this is a link inside a preview
+      if (isNested) {
+        // Create or retrieve a nested preview element
+        let nestedPreviewEl = previewsMap.get(link);
         
-        // Default position (below and centered on the link)
-        let top = linkRect.bottom + window.scrollY + 10;
-        let left = linkRect.left + window.scrollX + (linkRect.width / 2) - 250; // 500px width / 2
+        if (!nestedPreviewEl) {
+          nestedPreviewEl = document.createElement('div');
+          nestedPreviewEl.classList.add('hover-preview', 'nested-preview');
+          nestedPreviewEl.style.display = 'none';
+          document.body.appendChild(nestedPreviewEl);
+          
+          // Add loading state to nested preview
+          const nestedLoadingEl = document.createElement('div');
+          nestedLoadingEl.classList.add('hover-preview-loading');
+          nestedLoadingEl.innerHTML = '<div></div><div></div><div></div><div></div>';
+          nestedPreviewEl.appendChild(nestedLoadingEl);
+          
+          // Content container for nested preview
+          const nestedContentEl = document.createElement('div');
+          nestedContentEl.classList.add('hover-preview-content');
+          nestedPreviewEl.appendChild(nestedContentEl);
+          
+          // Store it for future reference
+          previewsMap.set(link, nestedPreviewEl);
+          
+          // Set up hover events for the nested preview
+          nestedPreviewEl.addEventListener('mouseenter', function() {
+            isHoveringPreview = true;
+            cancelHidePreviewTimeout();
+          });
+          
+          nestedPreviewEl.addEventListener('mouseleave', function() {
+            isHoveringPreview = false;
+            hidePreviewAfterDelay(nestedPreviewEl);
+          });
+        }
         
-        // Store the active preview link for reference
+        // Use the nested preview instead of the main one
+        currentLink = link;
         activePreview = link;
+        nestedPreviews.push(nestedPreviewEl);
         
-        // Set initial position to calculate size
-        previewEl.style.top = `${top}px`;
-        previewEl.style.left = `${left}px`;
-        previewEl.style.display = 'block';
-        previewEl.classList.add('visible');
+        // Set a timeout to show the nested preview
+        hoverTimeout = setTimeout(() => {
+          // Show the nested preview
+          showPreview(link, nestedPreviewEl, nestedPreviewEl.querySelector('.hover-preview-loading'), nestedPreviewEl.querySelector('.hover-preview-content'));
+        }, 300);
+      } else {
+        // Regular link (not inside a preview)
+        currentLink = link;
         
-        // Wait a bit for the element to render, then adjust position
-        setTimeout(() => {
-          const previewRect = previewEl.getBoundingClientRect();
-          const { x, y, isBelow } = positionElementInViewport(
-            previewEl, 
-            left, 
-            top, 
-            previewRect.width, 
-            previewRect.height,
-            true
-          );
+        // Set a timeout to show the preview
+        hoverTimeout = setTimeout(() => {
+          // Hide any nested previews first
+          hideNestedPreviews();
           
-          // Update position
-          previewEl.style.top = `${y}px`;
-          previewEl.style.left = `${x}px`;
-        }, 10);
-        
-        loadingEl.style.display = 'inline-block';
-        contentEl.style.display = 'none';
-        contentEl.innerHTML = '';
-        
-        // Get the target href
-        let targetHref = link.getAttribute('href');
-        
-        // If there's no href, try data-href (used in some Obsidian exports)
-        if (!targetHref && link.hasAttribute('data-href')) {
-          // Convert data-href (like "Attack") to a file path
-          const dataHref = link.getAttribute('data-href');
-          targetHref = dataHref.replace(/\s+/g, '-').toLowerCase() + '.html';
-        }
-        
-        // Skip if the link is to an external site
-        if (targetHref && (targetHref.startsWith('http://') || targetHref.startsWith('https://'))) {
-          if (!targetHref.includes(window.location.hostname)) {
-            contentEl.innerHTML = '<div class="preview-message">External link: ' + targetHref + '</div>';
-            loadingEl.style.display = 'none';
-            contentEl.style.display = 'block';
-            return;
-          }
-        }
-        
-        // Skip if the link has a hash (it's an anchor link)
-        if (targetHref && targetHref.includes('#') && !targetHref.startsWith('#')) {
-          const hashParts = targetHref.split('#');
-          const currentPage = window.location.pathname.split('/').pop();
+          // Store the active preview link for reference
+          activePreview = link;
           
-          // If it's a link to an anchor in the current page
-          if (hashParts[0] === currentPage || hashParts[0] === '') {
-            const anchorId = hashParts[1];
-            const anchorElement = document.getElementById(anchorId);
-            
-            if (anchorElement) {
-              contentEl.innerHTML = '<div class="preview-content">' + anchorElement.innerHTML + '</div>';
-              loadingEl.style.display = 'none';
-              contentEl.style.display = 'block';
-              return;
-            }
-          }
-        }
-        
-        // Resolve the URL to handle relative paths correctly
-        targetHref = resolveUrl(targetHref);
-        
-        // Remove any hash or query parameters
-        targetHref = targetHref.split('#')[0].split('?')[0];
-        
-        // Fetch and display the content
-        fetchPreviewContent(targetHref);
-      }, 300); // Show preview after 300ms hover
+          // Show the main preview
+          showPreview(link, previewEl, loadingEl, contentEl);
+        }, 300); // Show preview after 300ms hover
+      }
     });
     
     link.addEventListener('mouseleave', function(e) {
       // Only hide if not hovering the preview itself
       if (!isHoveringPreview) {
         cancelHoverTimeout();
-        hidePreviewAfterDelay();
+        
+        // If inside a preview, only hide the nested preview
+        if (isNested) {
+          if (nestedPreviews.length > 0) {
+            const lastNestedPreview = nestedPreviews[nestedPreviews.length - 1];
+            hidePreviewAfterDelay(lastNestedPreview);
+          }
+        } else {
+          hidePreviewAfterDelay(previewEl);
+        }
       }
     });
     
     // Add click handler to hide preview and store state
     link.addEventListener('click', function() {
-      hidePreview();
+      hideAllPreviews();
       sessionStorage.setItem('linkClicked', 'true');
     });
+  }
+  
+  // Function to show a preview
+  function showPreview(link, previewElement, loadingElement, contentElement) {
+    const linkRect = link.getBoundingClientRect();
+    
+    // Default position (below and centered on the link)
+    let top = linkRect.bottom + window.scrollY + 10;
+    let left = linkRect.left + window.scrollX + (linkRect.width / 2) - 250; // 500px width / 2
+    
+    // Set initial position to calculate size
+    previewElement.style.top = `${top}px`;
+    previewElement.style.left = `${left}px`;
+    previewElement.style.display = 'block';
+    previewElement.classList.add('visible');
+    
+    // Wait a bit for the element to render, then adjust position
+    setTimeout(() => {
+      const previewRect = previewElement.getBoundingClientRect();
+      const { x, y, isBelow } = positionElementInViewport(
+        previewElement, 
+        left, 
+        top, 
+        previewRect.width, 
+        previewRect.height,
+        true
+      );
+      
+      // Update position
+      previewElement.style.top = `${y}px`;
+      previewElement.style.left = `${x}px`;
+    }, 10);
+    
+    loadingElement.style.display = 'inline-block';
+    contentElement.style.display = 'none';
+    contentElement.innerHTML = '';
+    
+    // Get the target href
+    let targetHref = link.getAttribute('href');
+    
+    // If there's no href, try data-href (used in some Obsidian exports)
+    if (!targetHref && link.hasAttribute('data-href')) {
+      // Convert data-href (like "Attack") to a file path
+      const dataHref = link.getAttribute('data-href');
+      targetHref = dataHref.replace(/\s+/g, '-').toLowerCase() + '.html';
+    }
+    
+    // Skip if the link is to an external site
+    if (targetHref && (targetHref.startsWith('http://') || targetHref.startsWith('https://'))) {
+      if (!targetHref.includes(window.location.hostname)) {
+        contentElement.innerHTML = '<div class="preview-message">External link: ' + targetHref + '</div>';
+        loadingElement.style.display = 'none';
+        contentElement.style.display = 'block';
+        return;
+      }
+    }
+    
+    // Skip if the link has a hash (it's an anchor link)
+    if (targetHref && targetHref.includes('#') && !targetHref.startsWith('#')) {
+      const hashParts = targetHref.split('#');
+      const currentPage = window.location.pathname.split('/').pop();
+      
+      // If it's a link to an anchor in the current page
+      if (hashParts[0] === currentPage || hashParts[0] === '') {
+        const anchorId = hashParts[1];
+        const anchorElement = document.getElementById(anchorId);
+        
+        if (anchorElement) {
+          contentElement.innerHTML = '<div class="preview-content">' + anchorElement.innerHTML + '</div>';
+          loadingElement.style.display = 'none';
+          contentElement.style.display = 'block';
+          return;
+        }
+      }
+    }
+    
+    // Resolve the URL to handle relative paths correctly
+    targetHref = resolveUrl(targetHref);
+    
+    // Remove any hash or query parameters
+    targetHref = targetHref.split('#')[0].split('?')[0];
+    
+    // Fetch and display the content
+    fetchPreviewContent(targetHref, link, previewElement, loadingElement, contentElement);
   }
   
   // Handle hover events on the preview itself
@@ -330,26 +395,55 @@ function initializeHoverPreview() {
   
   previewEl.addEventListener('mouseleave', function() {
     isHoveringPreview = false;
-    hidePreviewAfterDelay();
+    if (nestedPreviews.length === 0) { // Only hide if there are no nested previews
+      hidePreviewAfterDelay(previewEl);
+    }
   });
   
   // Timeout to hide the preview
   let hideTimeout = null;
   
-  function hidePreviewAfterDelay() {
+  function hidePreviewAfterDelay(previewElement) {
     cancelHidePreviewTimeout();
     hideTimeout = setTimeout(() => {
-      hidePreview();
+      if (previewElement === previewEl) {
+        // Hide main preview and all nested previews
+        hideAllPreviews();
+      } else {
+        // Just hide this specific nested preview
+        hidePreview(previewElement);
+        // Remove from nested previews array
+        const index = nestedPreviews.indexOf(previewElement);
+        if (index !== -1) {
+          nestedPreviews.splice(index, 1);
+        }
+      }
     }, 300); // Hide after 300ms
   }
   
-  function hidePreview() {
-    previewEl.classList.remove('visible');
-    setTimeout(() => {
-      previewEl.style.display = 'none';
-    }, 150); // Wait for opacity transition to complete
+  function hideAllPreviews() {
+    // Hide main preview
+    hidePreview(previewEl);
+    // Hide all nested previews
+    hideNestedPreviews();
+    // Reset tracking variables
     currentLink = null;
     activePreview = null;
+  }
+  
+  function hideNestedPreviews() {
+    // Hide all nested previews
+    nestedPreviews.forEach(preview => {
+      hidePreview(preview);
+    });
+    nestedPreviews = [];
+  }
+  
+  function hidePreview(previewElement) {
+    previewElement.classList.remove('visible');
+    setTimeout(() => {
+      previewElement.style.display = 'none';
+    }, 150); // Wait for opacity transition to complete
   }
   
   function cancelHidePreviewTimeout() {
@@ -367,7 +461,7 @@ function initializeHoverPreview() {
   }
   
   // Fetch the content of the linked page
-  async function fetchPreviewContent(href) {
+  async function fetchPreviewContent(href, link, previewElement, loadingElement, contentElement) {
     try {
       // If href doesn't end with .html, add it
       if (!href.endsWith('.html')) {
@@ -457,21 +551,21 @@ function initializeHoverPreview() {
         wrapper.appendChild(contentClone);
         
         // Hide loading and show content
-        loadingEl.style.display = 'none';
-        contentEl.style.display = 'block';
-        contentEl.innerHTML = wrapper.innerHTML;
+        loadingElement.style.display = 'none';
+        contentElement.style.display = 'block';
+        contentElement.innerHTML = wrapper.innerHTML;
         
         // Adjust position again after content is loaded
         setTimeout(() => {
-          // Only adjust position if this is still the active preview
-          if (currentLink === activePreview) {
-            const previewRect = previewEl.getBoundingClientRect();
-            const linkRect = currentLink.getBoundingClientRect();
+          // Make sure the link is still valid
+          if (link && document.body.contains(link)) {
+            const previewRect = previewElement.getBoundingClientRect();
+            const linkRect = link.getBoundingClientRect();
             const top = linkRect.bottom + window.scrollY + 10;
             const left = linkRect.left + window.scrollX + (linkRect.width / 2) - 250;
             
             const { x, y, isBelow } = positionElementInViewport(
-              previewEl, 
+              previewElement, 
               left, 
               top, 
               previewRect.width, 
@@ -480,25 +574,25 @@ function initializeHoverPreview() {
             );
             
             // Update position
-            previewEl.style.top = `${y}px`;
-            previewEl.style.left = `${x}px`;
+            previewElement.style.top = `${y}px`;
+            previewElement.style.left = `${x}px`;
           }
         }, 10);
         
         // Make internal links in the preview also have hover functionality
-        const previewLinks = contentEl.querySelectorAll('.internal-link');
+        const previewLinks = contentElement.querySelectorAll('.internal-link');
         previewLinks.forEach(link => {
           setupLinkHover(link);
         });
       } else {
-        contentEl.innerHTML = '<div class="preview-error">No preview available</div>';
-        loadingEl.style.display = 'none';
-        contentEl.style.display = 'block';
+        contentElement.innerHTML = '<div class="preview-error">No preview available</div>';
+        loadingElement.style.display = 'none';
+        contentElement.style.display = 'block';
       }
     } catch (error) {
-      contentEl.innerHTML = '<div class="preview-error">Error loading preview</div>';
-      loadingEl.style.display = 'none';
-      contentEl.style.display = 'block';
+      contentElement.innerHTML = '<div class="preview-error">Error loading preview</div>';
+      loadingElement.style.display = 'none';
+      contentElement.style.display = 'block';
     }
   }
   
@@ -584,14 +678,14 @@ function initializeHoverPreview() {
   // Handle page unload events to clean up
   window.addEventListener('beforeunload', function() {
     // Hide any active previews
-    hidePreview();
+    hideAllPreviews();
   });
   
   // Hide previews when clicking elsewhere on the page
   document.addEventListener('click', function(e) {
     // Check if the click is outside of any preview or link
     if (!e.target.closest('.hover-preview') && !e.target.closest('.internal-link')) {
-      hidePreview();
+      hideAllPreviews();
     }
   });
   
@@ -617,251 +711,3 @@ function initializeHoverPreview() {
   // Start observing the document with the configured parameters
   observer.observe(document.body, { childList: true, subtree: true });
 } 
-EOF
-
-cat > lib/styles/hover-preview.css << 'EOF'
-/* Hover Preview Styles */
-
-.hover-preview {
-  position: absolute;
-  z-index: 9999;
-  width: 500px;
-  max-width: 90vw;
-  background-color: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  padding: 15px;
-  max-height: 60vh;
-  overflow-y: auto;
-  font-size: 0.9em;
-  line-height: 1.5;
-  opacity: 0;
-  transform: translateY(5px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
-  pointer-events: auto !important;
-  box-sizing: border-box;
-}
-
-.hover-preview.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Preview title */
-.preview-title {
-  margin-top: 0;
-  margin-bottom: 0.8em;
-  font-size: 1.2em;
-  padding-bottom: 0.5em;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-/* Arrow pointing down (when preview is above link) */
-.hover-preview.points-up::after {
-  content: "";
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 8px solid var(--background-primary);
-  z-index: 1;
-}
-
-/* Arrow pointing up (when preview is below link) */
-.hover-preview.points-down::after {
-  content: "";
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 8px solid var(--background-primary);
-  z-index: 1;
-}
-
-/* Loading animation */
-.hover-preview-loading {
-  display: inline-block;
-  position: relative;
-  width: 80px;
-  height: 40px;
-  margin: 20px auto;
-  text-align: center;
-}
-
-.hover-preview-loading div {
-  display: inline-block;
-  position: absolute;
-  top: 15px;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: var(--interactive-accent);
-  animation-timing-function: cubic-bezier(0, 1, 1, 0);
-}
-
-.hover-preview-loading div:nth-child(1) {
-  left: 8px;
-  animation: hover-preview-loading1 0.6s infinite;
-}
-
-.hover-preview-loading div:nth-child(2) {
-  left: 8px;
-  animation: hover-preview-loading2 0.6s infinite;
-}
-
-.hover-preview-loading div:nth-child(3) {
-  left: 32px;
-  animation: hover-preview-loading2 0.6s infinite;
-}
-
-.hover-preview-loading div:nth-child(4) {
-  left: 56px;
-  animation: hover-preview-loading3 0.6s infinite;
-}
-
-@keyframes hover-preview-loading1 {
-  0% {
-    transform: scale(0);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes hover-preview-loading3 {
-  0% {
-    transform: scale(1);
-  }
-  100% {
-    transform: scale(0);
-  }
-}
-
-@keyframes hover-preview-loading2 {
-  0% {
-    transform: translate(0, 0);
-  }
-  100% {
-    transform: translate(24px, 0);
-  }
-}
-
-/* Content styles */
-.hover-preview-content {
-  position: relative;
-}
-
-.hover-preview-content img {
-  max-width: 100%;
-  height: auto;
-}
-
-.hover-preview-content * {
-  max-width: 100%;
-}
-
-/* Handle headings */
-.hover-preview-content h1,
-.hover-preview-content h2,
-.hover-preview-content h3,
-.hover-preview-content h4,
-.hover-preview-content h5,
-.hover-preview-content h6 {
-  margin-top: 0.5em;
-  margin-bottom: 0.3em;
-}
-
-/* Handle code blocks */
-.hover-preview-content pre,
-.hover-preview-content code {
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-}
-
-/* Handle tables */
-.hover-preview-content table {
-  width: 100%;
-  display: block;
-  overflow-x: auto;
-}
-
-.hover-preview .preview-error {
-  color: var(--text-error);
-  text-align: center;
-  padding: 15px;
-  font-style: italic;
-}
-
-.hover-preview .preview-message {
-  color: var(--text-normal);
-  text-align: center;
-  padding: 15px;
-  font-style: italic;
-}
-
-.hover-preview .preview-content {
-  padding: 5px;
-}
-
-/* Bracket link styling */
-.internal-link.bracket-link {
-  color: var(--text-accent);
-  text-decoration: none;
-  border-bottom: 1px dotted var(--text-accent);
-  cursor: pointer;
-  position: relative;
-  z-index: 1;
-}
-
-.internal-link.bracket-link:hover {
-  color: var(--text-accent-hover);
-  border-bottom-color: var(--text-accent-hover);
-}
-
-/* Override any global styles that might interfere */
-.internal-link {
-  position: relative;
-}
-
-/* Fix theme-specific compatibility issues */
-body.theme-dark .hover-preview {
-  background-color: var(--background-primary, #2d3032);
-  color: var(--text-normal, #dcddde);
-}
-
-body.theme-light .hover-preview {
-  background-color: var(--background-primary, #ffffff);
-  color: var(--text-normal, #2e3338);
-} 
-EOF
-
-echo "Hover preview files have been created/updated."
-
-# Find all HTML files in the current directory and subdirectories
-find . -type f -name "*.html" | while read -r file; do
-  echo "Processing $file..."
-  
-  # Remove existing hover preview script and CSS if present
-  sed -i '' 's|<link rel="stylesheet" href="lib/styles/hover-preview.css">||g' "$file"
-  sed -i '' 's|<script async src="lib/scripts/hover-preview.js">.*</script>||g' "$file"
-  sed -i '' 's|<script src="lib/scripts/hover-preview.js">.*</script>||g' "$file"
-  
-  # Add the hover preview CSS link before the closing </head> tag
-  sed -i '' 's#</head>#<link rel="stylesheet" href="lib/styles/hover-preview.css">\n</head>#' "$file"
-  
-  # Add the hover preview JS script right before the closing </body> tag to ensure it loads last
-  sed -i '' 's#</body>#<script src="lib/scripts/hover-preview.js"></script>\n</body>#' "$file"
-  
-  echo "  Updated $file"
-done
-
-echo "All HTML files have been updated!" 
