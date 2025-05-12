@@ -52,6 +52,9 @@ function initializeHoverPreview() {
   // Track the preview hierarchy relationships
   const previewParents = new Map(); // Maps a preview to its parent preview
   
+  // Track links that have active previews (both main and nested)
+  const activeLinks = new Set();
+  
   // Track mouse movement between previews
   let mouseTarget = null;
   let isMouseOverAnyPreview = false;
@@ -112,11 +115,16 @@ function initializeHoverPreview() {
     // Update our tracking of whether mouse is over any preview
     isMouseOverAnyPreview = foundPreview;
     
-    // Check if we're over the original link that triggered the preview
-    const isOverOriginalLink = currentLink && isElementOrChildOf(mouseTarget, currentLink);
+    // Check if we're over any active link that has opened a preview
+    let isOverActiveLink = false;
+    activeLinks.forEach(link => {
+      if (isElementOrChildOf(mouseTarget, link)) {
+        isOverActiveLink = true;
+      }
+    });
     
-    // If we're not inside any preview anymore and not over the original link, schedule all to close
-    if (!foundPreview && !isOverOriginalLink) {
+    // If we're not inside any preview anymore and not over any active link, schedule all to close
+    if (!foundPreview && !isOverActiveLink) {
       // If we have open previews and mouse is over the main document
       if ((previewEl.style.display !== 'none' || nestedPreviews.some(p => p.style.display !== 'none')) 
            && !isHovering(mouseTarget)) {
@@ -452,6 +460,9 @@ function initializeHoverPreview() {
   
   // Function to show a preview
   function showPreview(link, previewElement, loadingElement, contentElement) {
+    // Add the link to our set of active links
+    activeLinks.add(link);
+    
     const linkRect = link.getBoundingClientRect();
     
     // Default position (below and centered on the link)
@@ -639,6 +650,7 @@ function initializeHoverPreview() {
     activePreview = null;
     previewHoverState.clear();
     isMouseOverAnyPreview = false;
+    activeLinks.clear();
   }
   
   function hideNestedPreviews() {
