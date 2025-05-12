@@ -467,23 +467,42 @@ function initializeHoverPreview() {
     });
     
     link.addEventListener('mouseleave', function(e) {
-      cancelHoverTimeout();
+      cancelHoverTimeout(); // Still cancel the show timeout
       
-      // If we're moving to another element, not a preview, hide after delay
       const relatedTarget = e.relatedTarget;
-      const movingToPreview = relatedTarget && 
-                             (relatedTarget.classList.contains('hover-preview') || 
-                              relatedTarget.closest('.hover-preview') !== null);
       
-      if (!movingToPreview) {
-        if (isNested) {
-          // Get the preview for this link
-          const nestedPreviewEl = previewsMap.get(link);
-          if (nestedPreviewEl) {
-            hidePreviewAfterDelay(nestedPreviewEl);
-          }
+      // Determine which preview (main or nested) is associated with this link
+      let associatedPreview = null;
+      if (previewTriggers.get(previewEl) === link) {
+        associatedPreview = previewEl;
+      } else {
+        associatedPreview = previewsMap.get(link);
+      }
+      
+      // Check if we are moving to the preview associated with this link
+      const movingToAssociatedPreview = associatedPreview && 
+                                      associatedPreview.style.display !== 'none' && 
+                                      isElementOrChildOf(relatedTarget, associatedPreview);
+      
+      // Check if moving to *any* other preview element (could be parent/sibling)
+      const movingToAnyPreview = relatedTarget?.closest('.hover-preview');
+      
+      // Only schedule hide if we are NOT moving to the associated preview
+      // AND NOT moving to any other preview element.
+      if (!movingToAssociatedPreview && !movingToAnyPreview) {
+        // We seem to be leaving the link and not entering a preview immediately
+        if (associatedPreview) {
+          // Schedule the specific preview associated with this link to hide
+          hidePreviewAfterDelay(associatedPreview);
         } else {
-          hidePreviewAfterDelay(previewEl);
+          // Fallback for safety, though associatedPreview should usually exist if triggered
+          // This might cover cases where the preview hasn't fully shown yet
+          if (isNested) {
+            const nestedPreviewEl = previewsMap.get(link);
+            if (nestedPreviewEl) hidePreviewAfterDelay(nestedPreviewEl);
+          } else {
+            hidePreviewAfterDelay(previewEl);
+          }
         }
       }
     });
