@@ -411,7 +411,7 @@ function initializeHoverPreview() {
           
           // Update active preview path
           updateActivePreviewPath(nestedPreviewEl);
-        }, 150); // Show preview after 150ms hover
+        }, 300); // Double the delay for nested links (300ms instead of 150ms)
       } else {
         // Regular link (not inside a preview)
         currentLink = link;
@@ -432,7 +432,7 @@ function initializeHoverPreview() {
           
           // Update active preview path
           updateActivePreviewPath(previewEl);
-        }, 150); // Show preview after 150ms hover
+        }, 150); // Keep standard delay for top-level links
       }
     });
     
@@ -528,6 +528,19 @@ function initializeHoverPreview() {
   function showPreview(link, previewElement, loadingElement, contentElement) {
     // Add the link to our set of active links
     activeLinks.add(link);
+    
+    // Mark this link-preview association as stable (recently activated)
+    // This will prevent premature closing
+    const isNested = link.closest('.hover-preview-content') !== null;
+    if (isNested) {
+      // For nested links, we need extra stability protection
+      previewElement.setAttribute('data-stable', 'true');
+      
+      // Remove the stable flag after 1000ms to allow normal hiding behavior after
+      setTimeout(() => {
+        previewElement.removeAttribute('data-stable');
+      }, 1000);
+    }
     
     const linkRect = link.getBoundingClientRect();
     
@@ -644,6 +657,11 @@ function initializeHoverPreview() {
   
   function hidePreviewAfterDelay(previewElement) {
     cancelHidePreviewTimeout(previewElement);
+    
+    // Skip hide if this preview is marked as stable (recently activated from nested link)
+    if (previewElement.getAttribute('data-stable') === 'true') {
+      return;
+    }
     
     const timeout = setTimeout(() => {
       // Only hide if still not being hovered
