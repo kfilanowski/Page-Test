@@ -796,9 +796,6 @@ function initializeHoverPreview() {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       
-      // Try to find the title first
-      const title = doc.querySelector('title')?.textContent || '';
-      
       // Find the main content using various selectors that might be present
       let contentContainer = doc.querySelector('.markdown-preview-sizer');
       
@@ -842,16 +839,8 @@ function initializeHoverPreview() {
       }
       
       if (contentContainer) {
-        // Create a wrapper with the title
+        // Create a wrapper for the content
         const wrapper = document.createElement('div');
-        
-        // Only add title if we found one and not using body as container
-        if (title && contentContainer !== doc.body) {
-          const titleEl = document.createElement('h1');
-          titleEl.textContent = title;
-          titleEl.classList.add('preview-title');
-          wrapper.appendChild(titleEl);
-        }
         
         // Remove any script tags for security
         const scripts = contentContainer.querySelectorAll('script');
@@ -859,6 +848,14 @@ function initializeHoverPreview() {
         
         // Clone the content
         const contentClone = contentContainer.cloneNode(true);
+        
+        // We'll remove the first heading if it matches the link text to avoid duplication
+        const firstHeading = contentClone.querySelector('h1, h2, h3');
+        const linkText = link.textContent.trim();
+        
+        if (firstHeading && firstHeading.textContent.trim() === linkText) {
+          firstHeading.remove();
+        }
         
         // Append the content
         wrapper.appendChild(contentClone);
