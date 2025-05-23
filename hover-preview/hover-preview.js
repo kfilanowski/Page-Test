@@ -236,7 +236,34 @@ function initializeHoverPreview() {
     
     // Extract the repository name from pathname
     const pathSegments = fullPath.split('/').filter(part => part);
-    const repoName = pathSegments.length > 0 ? pathSegments[0] : '';
+    let repoName = '';
+    
+    // Try to get repo name from URL structure
+    if (pathSegments.length > 0) {
+      repoName = pathSegments[0];
+    } else {
+      // If we can't get it from URL, try to get it from the base tag
+      const baseTag = document.querySelector('base');
+      if (baseTag && baseTag.getAttribute('href')) {
+        const baseHref = baseTag.getAttribute('href');
+        const baseSegments = baseHref.split('/').filter(part => part);
+        if (baseSegments.length > 0) {
+          repoName = baseSegments[0];
+        }
+      }
+    }
+    
+    // If we still don't have a repo name, try to get it from the current URL's hostname
+    if (!repoName && window.location.hostname.endsWith('github.io')) {
+      // For GitHub Pages, the repo name is typically the first path segment
+      const url = new URL(window.location.href);
+      const segments = url.pathname.split('/').filter(part => part);
+      if (segments.length > 0) {
+        repoName = segments[0];
+      }
+    }
+    
+    console.log('Detected repository name:', repoName);
     
     // Handle absolute paths (starting with /)
     if (href.startsWith('/')) {
