@@ -240,7 +240,7 @@ function initializeHoverPreview() {
     
     // Handle absolute paths (starting with /)
     if (href.startsWith('/')) {
-      return `${origin}${href}`;
+      return `${origin}/${repoName}${href}`;
     }
     
     // For Obsidian-style links that might start with the root path components
