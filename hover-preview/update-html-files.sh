@@ -36,9 +36,15 @@ done
 echo "Waiting for webpage.js to be replaced..."
 while true; do
   if [ -f "../lib/scripts/webpage.js" ]; then
-    echo "webpage.js found, copying changes..."
-    # Add our changes to webpage.js
-    cat webpage.js >> "../lib/scripts/webpage.js"
+    echo "webpage.js found, checking if our changes are already present..."
+    # Check if our code is already in webpage.js
+    if ! grep -q "const path = window.location.pathname" "../lib/scripts/webpage.js"; then
+      echo "Adding our changes to webpage.js..."
+      # Add our changes to webpage.js
+      cat webpage.js >> "../lib/scripts/webpage.js"
+    else
+      echo "Our changes are already present in webpage.js, skipping..."
+    fi
     break
   fi
   sleep 1
