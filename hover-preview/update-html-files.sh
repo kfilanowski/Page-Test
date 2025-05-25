@@ -10,6 +10,7 @@ mkdir -p ../lib/scripts
 echo "Copying hover preview files to lib directory..."
 cp hover-preview.js ../lib/scripts/hover-preview.js
 cp hover-preview.css ../lib/styles/hover-preview.css
+cp offense-calculator.js ../lib/scripts/offense-calculator.js
 echo "Hover preview files have been copied to lib directory."
 
 # Find all HTML files in the parent directory and its subdirectories
@@ -20,12 +21,13 @@ find .. -type f -name "*.html" | while read -r file; do
   sed -i '' 's|<link rel="stylesheet" href="lib/styles/hover-preview.css">||g' "$file"
   sed -i '' 's|<script async src="lib/scripts/hover-preview.js">.*</script>||g' "$file"
   sed -i '' 's|<script src="lib/scripts/hover-preview.js">.*</script>||g' "$file"
+  sed -i '' 's|<script src="lib/scripts/offense-calculator.js">.*</script>||g' "$file"
   
   # Add the hover preview CSS link before the closing </head> tag
   sed -i '' 's#</head>#<link rel="stylesheet" href="lib/styles/hover-preview.css">\n</head>#' "$file"
   
   # Add the hover preview JS script right before the closing </body> tag to ensure it loads last
-  sed -i '' 's#</body>#<script src="lib/scripts/hover-preview.js"></script>\n</body>#' "$file"
+  sed -i '' 's#</body>#<script src="lib/scripts/hover-preview.js"></script>\n<script src="lib/scripts/offense-calculator.js"></script>\n</body>#' "$file"
   
   echo "  Updated $file"
 done
