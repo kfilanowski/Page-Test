@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script updates the hover preview functionality in all HTML files
+# This script updates the hover preview functionality in all HTML files and webpage.js
 
 # Make sure the necessary directories exist
 mkdir -p ../lib/styles
@@ -30,4 +30,16 @@ find .. -type f -name "*.html" | while read -r file; do
   echo "  Updated $file"
 done
 
-echo "All HTML files have been updated!" 
+# Wait for webpage.js to be replaced and then copy our changes into it
+echo "Waiting for webpage.js to be replaced..."
+while true; do
+  if [ -f "../lib/scripts/webpage.js" ]; then
+    echo "webpage.js found, copying changes..."
+    # Add our changes to webpage.js
+    cat webpage.js >> "../lib/scripts/webpage.js"
+    break
+  fi
+  sleep 1
+done
+
+echo "All HTML files and webpage.js have been updated!" 
