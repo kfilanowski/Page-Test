@@ -1,76 +1,80 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # update-html-files.sh
 # --------------------
-# • Copies support files (hover-preview, offense-calculator, meta-bind)
+# • Copies support files (hover-preview & meta-bind)
 # • Injects <link>/<script> tags into every exported *.html
-# • Appends our extra code to webpage.js once it appears
-# -------------------------------------------------------------------
+# • Appends one-off tweaks to webpage.js the first time it appears
+# ------------------------------------------------------------------
 
-set -e
+set -euo pipefail
 
-# 0. Destination folders inside the export
-CSS_DIR="../lib/styles"
-JS_DIR="../lib/scripts"
+### 0 · Paths -------------------------------------------------------
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+CSS_DIR="$SCRIPT_DIR/../lib/styles"
+JS_DIR="$SCRIPT_DIR/../lib/scripts"
 
 mkdir -p "$CSS_DIR" "$JS_DIR"
 
-# 1. Copy hover-preview assets
-echo "Copying hover-preview and calculator assets…"
-cp hover-preview.css      "$CSS_DIR/hover-preview.css"
-cp hover-preview.js       "$JS_DIR/hover-preview.js"
-#cp offense-calculator.js  "$JS_DIR/offense-calculator.js"
+### 1 · Copy helper assets -----------------------------------------
+echo "▶ Copying helper assets …"
+cp "$SCRIPT_DIR/hover-preview.css" "$CSS_DIR/hover-preview.css"
+cp "$SCRIPT_DIR/hover-preview.js"  "$JS_DIR/hover-preview.js"
 
-# 2. Copy Meta Bind runtime  ─────────────────────────────────────────
-#    (you placed the files here: hover-preview/main.js & styles.css)
+echo "▶ Copying Meta Bind runtime …"
+cp "$SCRIPT_DIR/main.js"    "$JS_DIR/meta-bind.js"
+cp "$SCRIPT_DIR/styles.css" "$CSS_DIR/meta-bind.css"   # optional styling
 
-echo "Copying Meta Bind runtime…"
-cp main.js    "$JS_DIR/meta-bind.js"
-cp styles.css "$CSS_DIR/meta-bind.css"   # styling (optional)
+echo "✔ Files copied."
 
-echo "All support files copied."
+### 2 · Pick the right sed -i syntax -------------------------------
+if sed --version &>/dev/null; then       # GNU sed (Linux)
+  SED_INPLACE=(sed -i)
+else                                      # BSD / macOS sed
+  SED_INPLACE=(sed -i '')
+fi
 
-# 3. Walk every HTML file and patch it
-find .. -type f -name "*.html" | while read -r file; do
+### 3 · Patch every HTML file --------------------------------------
+find "$SCRIPT_DIR/.." -type f -name '*.html' | while read -r file; do
+  REL="${file#"${SCRIPT_DIR}/../"}"
+  echo "• Patching ${REL}"
 
-  # ── Remove any stale tags ────────────────────────────────────────
-  sed -i '' '/hover-preview\.css/d'      "$file"
-  sed -i '' '/hover-preview\.js/d'       "$file"
-  sed -i '' '/offense-calculator\.js/d'  "$file"
-  sed -i '' '/meta-bind\.js/d'           "$file"
-  sed -i '' '/meta-bind\.css/d'          "$file"
-  sed -i '' '/mathjs@/d'                 "$file"
+  # 3a · Remove any old tags -------------------------------------------------
+  "${SED_INPLACE[@]}" '/hover-preview\.css/d'     "$file"
+  "${SED_INPLACE[@]}" '/hover-preview\.js/d'      "$file"
+  "${SED_INPLACE[@]}" '/offense-calculator\.js/d' "$file"
+  "${SED_INPLACE[@]}" '/meta-bind\.css/d'         "$file"
+  "${SED_INPLACE[@]}" '/meta-bind\.js/d'          "$file"
+  "${SED_INPLACE[@]}" '/mathjs@/d'                "$file"
 
-  # ── Inject CSS just before </head> ───────────────────────────────
-  sed -i '' "s#</head>#\
+  # 3b · Inject CSS right before </head> -------------------------------------
+  "${SED_INPLACE[@]}" "s#</head>#\
 <link rel=\"stylesheet\" href=\"lib/styles/hover-preview.css\">\
 \n<link rel=\"stylesheet\" href=\"lib/styles/meta-bind.css\">\
 \n</head>#g" "$file"
 
-  # ── Inject JS just before </body> (order is important!) ──────────
-  sed -i '' "s#</body>#\
-<script src=\"https://cdn.jsdelivr.net/npm/mathjs@11/dist/math.min.js\"></script>\
+  # 3c · Inject JS right before </body> (order matters) ----------------------
+  "${SED_INPLACE[@]}" "s#</body>#\
+<script src=\"https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.js\"></script>\
 \n<script src=\"lib/scripts/meta-bind.js\"></script>\
 \n<script src=\"lib/scripts/hover-preview.js\"></script>\
-\n<script src=\"lib/scripts/offense-calculator.js\"></script>\
 \n</body>#g" "$file"
-
-  echo "  ✓ Patched $file"
 done
 
-# 4. Wait for webpage.js and append overrides once
-echo "Waiting for lib/scripts/webpage.js…"
-while true; do
-  if [ -f "$JS_DIR/webpage.js" ]; then
-    if ! grep -q "const path = window.location.pathname" "$JS_DIR/webpage.js"; then
-      echo "Appending custom code to webpage.js…"
-      cat hover-preview/webpage.js >> "$JS_DIR/webpage.js"
-    else
-      echo "Custom code already present in webpage.js; skipping."
-    fi
-    break
-  fi
-  sleep 1
-done
+### 4 · Append extra code to webpage.js once -----------------------
+echo "▶ Waiting for lib/scripts/webpage.js …"
+until [[ -f "$JS_DIR/webpage.js" ]]; do sleep 0.5; done
 
-echo "✅  All HTML files and webpage.js updated!"
+CUSTOM_FLAG='/* custom sidebar toggle */'   #  unique marker
+
+if ! grep -qF "$CUSTOM_FLAG" "$JS_DIR/webpage.js"; then
+  echo "• Appending custom code to webpage.js"
+  {
+    echo "$CUSTOM_FLAG"
+    cat "$SCRIPT_DIR/webpage.js"
+  } >> "$JS_DIR/webpage.js"
+else
+  echo "• Custom code already present — skipping"
+fi
+
+echo "✅  All HTML files and webpage.js updated."
