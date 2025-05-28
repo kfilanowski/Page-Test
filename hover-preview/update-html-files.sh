@@ -21,8 +21,12 @@ echo "▶ Copying helper assets …"
 cp "$SCRIPT_DIR/hover-preview.css" "$CSS_DIR/hover-preview.css"
 cp "$SCRIPT_DIR/hover-preview.js"  "$JS_DIR/hover-preview.js"
 
-echo "▶ Copying Meta Bind runtime …"
-cp "$SCRIPT_DIR/main.js"    "$JS_DIR/meta-bind.js"
+echo "▶ Wrapping Meta-Bind runtime …"
+{
+  printf '(function(){\n'
+  cat   "$SCRIPT_DIR/main.js"
+  printf '\n})();\n'
+} > "$JS_DIR/meta-bind.js"
 cp "$SCRIPT_DIR/styles.css" "$CSS_DIR/meta-bind.css"   # optional styling
 
 echo "✔ Files copied."
@@ -44,13 +48,13 @@ find "$SCRIPT_DIR/.." -type f -name '*.html' | while read -r file; do
   "${SED_INPLACE[@]}" '/meta-bind\.js/d'      "$file"
   "${SED_INPLACE[@]}" '/mathjs@/d'            "$file"
 
-  # 3b · Inject CSS
+  # 3b · Inject CSS (order: hover-preview, then meta-bind)
   "${SED_INPLACE[@]}" "s#</head>#\
 <link rel=\"stylesheet\" href=\"lib/styles/hover-preview.css\">\
 \n<link rel=\"stylesheet\" href=\"lib/styles/meta-bind.css\">\
 \n</head>#g" "$file"
 
-  # 3c · Inject JS  (order matters)
+  # 3c · Inject JS  (order matters: mathjs → meta-bind → hover-preview)
   "${SED_INPLACE[@]}" "s#</body>#\
 <script src=\"https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.js\"></script>\
 \n<script src=\"lib/scripts/meta-bind.js\"></script>\
