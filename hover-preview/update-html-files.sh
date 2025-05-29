@@ -26,11 +26,19 @@ echo "▶ Installing Meta Bind (PublishLoad.js) …"
 {
   # ---------- wrapper start ----------
   printf '(function(){\n'
-  printf '  /* CommonJS + require shim for browser exports */\n'
+  printf '  /* Full shim for Meta-Bind inside static Publish pages */\n'
+  printf '  function createDummy(){\n'
+  printf '    class Dummy {}\n'
+  printf '    Dummy.Plugin = Dummy;           // for require("obsidian/publish").Plugin\n'
+  printf '    Dummy.injectCss = function(){}; // no-op helpers\n'
+  printf '    Dummy.events = { on(){}, off(){}, emit(){} };\n'
+  printf '    return Dummy;\n'
+  printf '  }\n\n'
+  printf '  var dummy = createDummy();\n'
   printf '  var module  = { exports: {} };\n'
   printf '  var exports = module.exports;\n'
   printf '  function require(name){\n'
-  printf '    if (name && name.startsWith("obsidian")) return {};\n'
+  printf '    if (name && name.startsWith("obsidian")) return dummy;\n'
   printf '    return {};\n'
   printf '  }\n\n'
   # ---------- original plugin code ----------
