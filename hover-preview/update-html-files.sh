@@ -23,12 +23,18 @@ cp "$SCRIPT_DIR/hover-preview.js"  "$JS_DIR/hover-preview.js"
 
 echo "▶ Wrapping Meta-Bind runtime …"
 {
-  printf '(function(){\n'
+  # ----  start wrapper  ------------------------------------------
+  printf '(function () {\n'
+  printf '  /* CommonJS shim for browser */\n'
+  printf '  var module = { exports: {} };\n'
+  printf '  var exports = module.exports;\n\n'
+  # ----  original plugin code  -----------------------------------
   cat   "$SCRIPT_DIR/main.js"
+  # ----  end wrapper  --------------------------------------------
   printf '\n})();\n'
 } > "$JS_DIR/meta-bind.js"
-cp "$SCRIPT_DIR/styles.css" "$CSS_DIR/meta-bind.css"   # optional styling
 
+cp "$SCRIPT_DIR/styles.css" "$CSS_DIR/meta-bind.css"   # optional styling
 echo "✔ Files copied."
 
 ### 2 · Choose sed flavour -----------------------------------------
@@ -41,20 +47,20 @@ find "$SCRIPT_DIR/.." -type f -name '*.html' | while read -r file; do
   REL="${file#"${SCRIPT_DIR}/../"}"
   echo "• Patching ${REL}"
 
-  # 3a · Remove stale tags
+  # 3a · Remove any old tags the previous run might have left
   "${SED_INPLACE[@]}" '/hover-preview\.css/d' "$file"
   "${SED_INPLACE[@]}" '/hover-preview\.js/d'  "$file"
   "${SED_INPLACE[@]}" '/meta-bind\.css/d'     "$file"
   "${SED_INPLACE[@]}" '/meta-bind\.js/d'      "$file"
   "${SED_INPLACE[@]}" '/mathjs@/d'            "$file"
 
-  # 3b · Inject CSS (order: hover-preview, then meta-bind)
+  # 3b · Inject CSS
   "${SED_INPLACE[@]}" "s#</head>#\
 <link rel=\"stylesheet\" href=\"lib/styles/hover-preview.css\">\
 \n<link rel=\"stylesheet\" href=\"lib/styles/meta-bind.css\">\
 \n</head>#g" "$file"
 
-  # 3c · Inject JS  (order matters: mathjs → meta-bind → hover-preview)
+  # 3c · Inject JS (order is important)
   "${SED_INPLACE[@]}" "s#</body>#\
 <script src=\"https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.js\"></script>\
 \n<script src=\"lib/scripts/meta-bind.js\"></script>\
@@ -73,8 +79,7 @@ if ! grep -qF "$CUSTOM_FLAG" "$JS_DIR/webpage.js"; then
 
   {
     echo "$CUSTOM_FLAG"
-    echo "(function(){"
-    # indent original lines for readability
+    echo "(function () {"
     sed 's/^/  /'  "$SCRIPT_DIR/webpage.js"
     echo "})();"
   } >> "$JS_DIR/webpage.js"
