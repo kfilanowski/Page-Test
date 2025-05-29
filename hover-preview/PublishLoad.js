@@ -1,4 +1,3 @@
-(function(){
 // META-BIND OBSIDIAN PUBLISH SCRIPT
 // add this script to the end of you publish.js
 // this script loads and executes the latest version of the meta-bind plugin for obsidian publish
@@ -37,5 +36,3 @@ async function mb_load() {
 }
 
 mb_load();
-
-})();
