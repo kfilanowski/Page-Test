@@ -24,8 +24,18 @@ cp "$SCRIPT_DIR/hover-preview.js"    "$JS_DIR/hover-preview.js"
 # ---- Meta-Bind (browser build) ----
 echo "▶ Installing Meta Bind (PublishLoad.js) …"
 {
+  # ---------- wrapper start ----------
   printf '(function(){\n'
-  cat   "$SCRIPT_DIR/PublishLoad.js"
+  printf '  /* CommonJS + require shim for browser exports */\n'
+  printf '  var module  = { exports: {} };\n'
+  printf '  var exports = module.exports;\n'
+  printf '  function require(name){\n'
+  printf '    if (name && name.startsWith("obsidian")) return {};\n'
+  printf '    return {};\n'
+  printf '  }\n\n'
+  # ---------- original plugin code ----------
+  cat "$SCRIPT_DIR/PublishLoad.js"
+  # ---------- wrapper end ----------
   printf '\n})();\n'
 } > "$JS_DIR/meta-bind.js"
 cp "$SCRIPT_DIR/styles.css"          "$CSS_DIR/meta-bind.css"
