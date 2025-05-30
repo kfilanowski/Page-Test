@@ -24,26 +24,28 @@ cp "$SCRIPT_DIR/hover-preview.js"    "$JS_DIR/hover-preview.js"
 # ---- Meta-Bind (browser build) ----
 echo "▶ Installing Meta Bind (PublishLoad.js) …"
 {
-  # ---------- wrapper start ----------
   printf '(function(){\n'
-  printf '  /* Full shim for Meta-Bind inside static Publish pages */\n'
-  printf '  function createDummy(){\n'
-  printf '    class Dummy {}\n'
-  printf '    Dummy.Plugin = Dummy;           // for require("obsidian/publish").Plugin\n'
-  printf '    Dummy.injectCss = function(){}; // no-op helpers\n'
-  printf '    Dummy.events = { on(){}, off(){}, emit(){} };\n'
-  printf '    return Dummy;\n'
-  printf '  }\n\n'
-  printf '  var dummy = createDummy();\n'
+  printf '  /* Obsidian-Publish shim so Meta-Bind can run in a static site */\n\n'
+
+  printf '  class DummyPlugin {}\n'
+  printf '  const shim = {\n'
+  printf '    Plugin: DummyPlugin,\n'
+  printf '    default: DummyPlugin,\n'
+  printf '    injectCss(){},\n'
+  printf '    events:{ on(){}, off(){}, emit(){} }\n'
+  printf '  };\n'
+  printf '  DummyPlugin.Plugin = DummyPlugin;\n\n'
+
   printf '  var module  = { exports: {} };\n'
-  printf '  var exports = module.exports;\n'
+  printf '  var exports = module.exports;\n\n'
+
   printf '  function require(name){\n'
-  printf '    if (name && name.startsWith("obsidian")) return dummy;\n'
+  printf '    if (name && name.startsWith("obsidian")) return shim;\n'
   printf '    return {};\n'
   printf '  }\n\n'
-  # ---------- original plugin code ----------
-  cat "$SCRIPT_DIR/PublishLoad.js"
-  # ---------- wrapper end ----------
+
+  printf '  /* === Meta-Bind Publish build === */\n'
+  cat   "$SCRIPT_DIR/PublishLoad.js"
   printf '\n})();\n'
 } > "$JS_DIR/meta-bind.js"
 cp "$SCRIPT_DIR/styles.css"          "$CSS_DIR/meta-bind.css"
