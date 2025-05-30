@@ -2,8 +2,8 @@
 #
 # update-html-files.sh
 # --------------------
-# • Copies support files (hover-preview & meta-bind)
-# • Injects <link>/<script> tags into every *.html
+# • Copies helper scripts (hover-preview & mb-lite)
+# • Injects <link>/<script> tags into every exported *.html
 # • Appends sidebar-toggle code to webpage.js once
 # ------------------------------------------------------------------
 
@@ -18,81 +18,50 @@ mkdir -p "$CSS_DIR" "$JS_DIR"
 
 ### 1 · Copy helper assets -----------------------------------------
 echo "▶ Copying helper assets …"
-cp "$SCRIPT_DIR/hover-preview.css"   "$CSS_DIR/hover-preview.css"
-cp "$SCRIPT_DIR/hover-preview.js"    "$JS_DIR/hover-preview.js"
-
-# ---- Meta-Bind (browser build) ----
-echo "▶ Installing Meta Bind (PublishLoad.js) …"
-{
-  printf '(function(){\n'
-  printf '  /* Obsidian-Publish shim so Meta-Bind can run in a static site */\n\n'
-
-  printf '  class DummyPlugin {}\n'
-  printf '  const shim = {\n'
-  printf '    Plugin: DummyPlugin,\n'
-  printf '    default: DummyPlugin,\n'
-  printf '    injectCss(){},\n'
-  printf '    events:{ on(){}, off(){}, emit(){} }\n'
-  printf '  };\n'
-  printf '  DummyPlugin.Plugin = DummyPlugin;\n\n'
-
-  printf '  var module  = { exports: {} };\n'
-  printf '  var exports = module.exports;\n\n'
-
-  printf '  function require(name){\n'
-  printf '    if (name && name.startsWith("obsidian")) return shim;\n'
-  printf '    return {};\n'
-  printf '  }\n\n'
-
-  printf '  /* === Meta-Bind Publish build === */\n'
-  cat   "$SCRIPT_DIR/PublishLoad.js"
-  printf '\n})();\n'
-} > "$JS_DIR/meta-bind.js"
-cp "$SCRIPT_DIR/styles.css"          "$CSS_DIR/meta-bind.css"
+cp "$SCRIPT_DIR/hover-preview.css" "$CSS_DIR/hover-preview.css"
+cp "$SCRIPT_DIR/hover-preview.js"  "$JS_DIR/hover-preview.js"
+cp "$SCRIPT_DIR/mb-lite.js"        "$JS_DIR/mb-lite.js"     # ← NEW
 
 echo "✔ Files copied."
 
-### 2 · Pick sed flavour --------------------------------------------
+### 2 · Choose sed flavour -----------------------------------------
 if sed --version &>/dev/null; then SED_INPLACE=(sed -i)
 else                               SED_INPLACE=(sed -i '')
 fi
 
-### 3 · Patch every HTML file ---------------------------------------
+### 3 · Patch every HTML file --------------------------------------
 find "$SCRIPT_DIR/.." -type f -name '*.html' | while read -r file; do
   REL="${file#"${SCRIPT_DIR}/../"}"
   echo "• Patching ${REL}"
 
-  # 3a · Remove old injections (idempotent)
+  # 3a · Remove stale tags from previous runs
   "${SED_INPLACE[@]}" '/hover-preview\.css/d' "$file"
   "${SED_INPLACE[@]}" '/hover-preview\.js/d'  "$file"
-  "${SED_INPLACE[@]}" '/meta-bind\.css/d'     "$file"
-  "${SED_INPLACE[@]}" '/meta-bind\.js/d'      "$file"
+  "${SED_INPLACE[@]}" '/mb-lite\.js/d'        "$file"
   "${SED_INPLACE[@]}" '/mathjs@/d'            "$file"
 
   # 3b · Inject CSS
   "${SED_INPLACE[@]}" "s#</head>#\
 <link rel=\"stylesheet\" href=\"lib/styles/hover-preview.css\">\
-\n<link rel=\"stylesheet\" href=\"lib/styles/meta-bind.css\">\
 \n</head>#g" "$file"
 
-  # 3c · Inject JS  (order matters)
+  # 3c · Inject JS  (order: mathjs → mb-lite → hover-preview)
   "${SED_INPLACE[@]}" "s#</body>#\
 <script src=\"https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.js\"></script>\
-\n<script src=\"lib/scripts/meta-bind.js\"></script>\
+\n<script src=\"lib/scripts/mb-lite.js\"></script>\
 \n<script src=\"lib/scripts/hover-preview.js\"></script>\
 \n</body>#g" "$file"
 done
 
-### 4 · Sidebar toggle patch ----------------------------------------
+### 4 · Append sidebar code to webpage.js (wrapped & only once) -----
 echo "▶ Waiting for lib/scripts/webpage.js …"
 until [[ -f "$JS_DIR/webpage.js" ]]; do sleep 0.5; done
 
-CUSTOM_FLAG='/* custom sidebar toggle  v1 */'
-
-if ! grep -qF "$CUSTOM_FLAG" "$JS_DIR/webpage.js"; then
+MARK='/* custom sidebar toggle  v1 */'
+if ! grep -qF "$MARK" "$JS_DIR/webpage.js"; then
   echo "• Appending sidebar toggle to webpage.js"
   {
-    echo "$CUSTOM_FLAG"
+    echo "$MARK"
     echo "(function(){"
     sed 's/^/  /' "$SCRIPT_DIR/webpage.js"
     echo "})();"
